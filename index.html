@@ -1,4 +1,5 @@
 <!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
@@ -61,29 +62,30 @@
   <div class="wrap">
     <div class="card">
       <h1>Chatwoot 客户模拟测试</h1>
-      <p>进入页面后右下角聊天窗口会自动打开，直接发送消息即可。</p>
-      <p>如未自动打开，请点击右下角聊天气泡。</p>
+      <p>聊天窗口已设置为始终展开模式。</p>
     </div>
   </div>
 
   <div class="hint" id="hint">
-    <div class="msg">聊天气泡在这里 👉（点右下角）</div>
+    <div class="msg">聊天气泡在这里 👉</div>
     <div class="arrow" aria-hidden="true">↘</div>
   </div>
 
   <script>
-    // Chatwoot 配置
+    // 1. 核心配置修改
     window.chatwootSettings = {
       position: "right",
-      type: "standard",
-      launcherTitle: ""
-      // 你也可以在这里加 locale: "zh"
+      type: "expanded",      // 尝试直接使用扩展模式
+      showPopout: false,     // 【关键】禁止图一那种气泡通知
+      launcherTitle: "聊天",
+      locale: "zh_CN"
     };
 
     (function(d,t) {
       var BASE_URL="https://app.chatwoot.com";
       var g=d.createElement(t), s=d.getElementsByTagName(t)[0];
       g.src=BASE_URL+"/packs/js/sdk.js";
+      g.defer = true;
       g.async = true;
       s.parentNode.insertBefore(g,s);
 
@@ -92,24 +94,21 @@
           websiteToken: "jU11bNeUjdHZzpTSbHqN7feq",
           baseUrl: BASE_URL
         });
-
-        // 等 SDK 初始化后再打开（做一个小延迟更稳）
-        setTimeout(function(){
-          try {
-            if (window.$chatwoot && typeof window.$chatwoot.toggle === "function") {
-              // 有些版本支持 toggle('open')，不支持就用 toggle()
-              try { window.$chatwoot.toggle("open"); }
-              catch(_) { window.$chatwoot.toggle(); }
-            } else {
-              // 兜底提示：展示“右下角气泡”
-              var hint = document.getElementById("hint");
-              hint.style.display = "flex";
-              setTimeout(()=>hint.style.display="none", 6500);
-            }
-          } catch(e) {}
-        }, 350);
       }
     })(document,"script");
+
+    // 2. 监听 SDK 准备就绪
+    window.addEventListener("chatwoot:ready", function () {
+      // 自动打开
+      window.$chatwoot.toggle("open");
+
+      // 3. 监听新消息：如果收到消息时窗口是关着的，强制打开它
+      window.addEventListener("chatwoot:on-message", function () {
+        if (!window.$chatwoot.isOpen) {
+            window.$chatwoot.toggle("open");
+        }
+      });
+    });
   </script>
 </body>
 </html>

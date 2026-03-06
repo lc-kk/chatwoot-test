@@ -82,20 +82,18 @@
     };
 
     (function(d,t) {
-      var BASE_URL="https://app.chatwoot.com";
-      var g=d.createElement(t), s=d.getElementsByTagName(t)[0];
-      g.src=BASE_URL+"/packs/js/sdk.js";
-      g.defer = true;
-      g.async = true;
-      s.parentNode.insertBefore(g,s);
-
-      g.onload=function(){
-        window.chatwootSDK.run({
-          websiteToken: "jU11bNeUjdHZzpTSbHqN7feq",
-          baseUrl: BASE_URL
-        });
-      }
-    })(document,"script");
+    var BASE_URL="https://chatwoot-production-5002.up.railway.app";
+    var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
+    g.src=BASE_URL+"/packs/js/sdk.js";
+    g.async = true;
+    s.parentNode.insertBefore(g,s);
+    g.onload=function(){
+      window.chatwootSDK.run({
+        websiteToken: 'D4oVDNsmy4pRjut1uMFqpvac',
+        baseUrl: BASE_URL
+      })
+    }
+  })(document,"script");
 
     // 2. 监听 SDK 准备就绪
     window.addEventListener("chatwoot:ready", function () {

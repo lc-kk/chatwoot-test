@@ -1,4 +1,7 @@
 const API_BASE = "https://roseanne-psychogenic-affrontingly.ngrok-free.dev";
+const DEFAULT_HEADERS = {
+  "ngrok-skip-browser-warning": "true"
+};
 let conversationId = null;
 let pollTimer = null;
 
@@ -11,7 +14,8 @@ const newChatBtn = document.getElementById("newChatBtn");
 async function startChat() {
   try {
     const res = await fetch(`${API_BASE}/test-chat/start`, {
-      method: "POST"
+      method: "POST",
+      headers: DEFAULT_HEADERS
     });
 
     console.log("startChat status:", res.status);
@@ -44,7 +48,10 @@ async function loadMessages() {
   if (!conversationId) return;
 
   const res = await fetch(
-    `${API_BASE}/test-chat/messages?conversation_id=${conversationId}`
+    `${API_BASE}/test-chat/messages?conversation_id=${conversationId}`,
+    {
+      headers: DEFAULT_HEADERS
+    }
   );
 
   console.log("loadMessages status:", res.status);
@@ -92,16 +99,11 @@ async function sendMessage() {
   sendBtn.disabled = true;
 
   try {
-  const sendRes = await fetch(`${API_BASE}/test-chat/send`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      conversation_id: conversationId,
-      message: text
-    })
-  });
+  const API_BASE = "https://roseanne-psychogenic-affrontingly.ngrok-free.dev";
+
+  const DEFAULT_HEADERS = {
+    "ngrok-skip-browser-warning": "true"
+  };
 
   console.log("send status:", sendRes.status);
 

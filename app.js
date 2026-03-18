@@ -30,7 +30,17 @@ async function loadMessages() {
   const res = await fetch(
     `${API_BASE}/test-chat/messages?conversation_id=${conversationId}`
   );
+
+  console.log("loadMessages status:", res.status);
+
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error("loadMessages failed:", errText);
+    throw new Error("Failed to load messages");
+  }
+
   const data = await res.json();
+  console.log("loadMessages data:", data);
 
   messagesEl.innerHTML = "";
 
@@ -61,25 +71,44 @@ async function sendMessage() {
   sendBtn.disabled = true;
 
   try {
-    await fetch(`${API_BASE}/test-chat/send`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        conversation_id: conversationId,
-        message: text
-      })
-    });
+  const sendRes = await fetch(`${API_BASE}/test-chat/send`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      conversation_id: conversationId,
+      message: text
+    })
+  });
 
-    messageInput.value = "";
-    await loadMessages();
-  } catch (err) {
-    console.error("sendMessage error:", err);
-    alert("Failed to send message.");
-  } finally {
-    sendBtn.disabled = false;
+  console.log("send status:", sendRes.status);
+
+  if (!sendRes.ok) {
+    const errText = await sendRes.text();
+    console.error("send failed:", errText);
+    alert("Send request failed.");
+    return;
   }
+
+  const sendData = await sendRes.json();
+  console.log("send data:", sendData);
+
+  messageInput.value = "";
+
+  try {
+    await loadMessages();
+  } catch (loadErr) {
+    console.error("loadMessages failed after send:", loadErr);
+    alert("Message sent, but failed to refresh messages.");
+  }
+} catch (err) {
+  console.error("sendMessage error:", err);
+  alert("Failed to send message.");
+} finally {
+  sendBtn.disabled = false;
+}
+
 }
 
 sendBtn.addEventListener("click", sendMessage);

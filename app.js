@@ -1,4 +1,4 @@
-const API_BASE = "你的后端公网地址";
+const API_BASE = "https://roseanne-psychogenic-affrontingly.ngrok-free.dev";
 let conversationId = null;
 let pollTimer = null;
 

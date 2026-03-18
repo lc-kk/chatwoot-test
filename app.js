@@ -9,19 +9,35 @@ const sendBtn = document.getElementById("sendBtn");
 const newChatBtn = document.getElementById("newChatBtn");
 
 async function startChat() {
-  const res = await fetch(`${API_BASE}/test-chat/start`, {
-    method: "POST"
-  });
+  try {
+    const res = await fetch(`${API_BASE}/test-chat/start`, {
+      method: "POST"
+    });
 
-  const data = await res.json();
-  conversationId = data.conversation_id;
-  conversationLabel.textContent = `Conversation ID: ${conversationId}`;
-  messagesEl.innerHTML = "";
+    console.log("startChat status:", res.status);
 
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(loadMessages, 2000);
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("startChat failed:", errText);
+      alert("Failed to start chat.");
+      return;
+    }
 
-  await loadMessages();
+    const data = await res.json();
+    console.log("startChat data:", data);
+
+    conversationId = data.conversation_id;
+    conversationLabel.textContent = `Conversation ID: ${conversationId}`;
+    messagesEl.innerHTML = "";
+
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(loadMessages, 2000);
+
+    await loadMessages();
+  } catch (err) {
+    console.error("startChat error:", err);
+    alert("Failed to start chat.");
+  }
 }
 
 async function loadMessages() {
@@ -42,11 +58,16 @@ async function loadMessages() {
   const data = await res.json();
   console.log("loadMessages data:", data);
 
+  if (!data.messages || !Array.isArray(data.messages)) {
+    console.error("Invalid messages payload:", data);
+    throw new Error("Invalid messages payload");
+  }
+
   messagesEl.innerHTML = "";
 
   for (const msg of data.messages) {
     const item = document.createElement("div");
-    item.className = `message ${msg.role}`;
+    item.className = `message ${msg.role || "unknown"}`;
 
     const role = document.createElement("div");
     role.className = "role";
@@ -54,7 +75,7 @@ async function loadMessages() {
 
     const content = document.createElement("div");
     content.className = "content";
-    content.textContent = msg.content;
+    content.textContent = msg.content || "";
 
     item.appendChild(role);
     item.appendChild(content);

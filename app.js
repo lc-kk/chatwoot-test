@@ -6,6 +6,7 @@ const NGROK_HEADERS = {
 let conversationId = null;
 let pollTimer = null;
 let isLoadingMessages = false;
+let isSending = false;
 let lastRenderedSignature = "";
 
 const POLL_INTERVAL_MS = 5000;
@@ -46,6 +47,26 @@ function buildMessagesSignature(messages) {
       content: msg.content || ""
     }))
   );
+}
+
+function appendMessage(roleText, contentText, cssRole = "user", pending = false) {
+  const item = document.createElement("div");
+  item.className = `message ${cssRole}${pending ? " pending" : ""}`;
+
+  const role = document.createElement("div");
+  role.className = "role";
+  role.textContent = roleText;
+
+  const content = document.createElement("div");
+  content.className = "content";
+  content.textContent = contentText;
+
+  item.appendChild(role);
+  item.appendChild(content);
+  messagesEl.appendChild(item);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+
+  return item;
 }
 
 function renderMessages(messages) {
@@ -155,10 +176,20 @@ async function loadMessages(silent = false) {
 
 async function sendMessage() {
   const text = messageInput.value.trim();
-  if (!text || !conversationId) return;
 
+  if (!text || !conversationId || isSending) return;
+
+  isSending = true;
   sendBtn.disabled = true;
+  sendBtn.textContent = "Sending...";
+  messageInput.disabled = true;
   stopPolling();
+
+  const currentText = text;
+  messageInput.value = "";
+
+  // 先把用户消息显示出来，避免用户以为没发出去
+  const pendingNode = appendMessage("Customer", currentText, "user", true);
 
   try {
     const sendRes = await fetch(`${API_BASE}/test-chat/send`, {
@@ -169,7 +200,7 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         conversation_id: conversationId,
-        message: text
+        message: currentText
       })
     });
 
@@ -178,6 +209,9 @@ async function sendMessage() {
     if (!sendRes.ok) {
       const errText = await sendRes.text();
       console.error("send failed:", errText);
+
+      pendingNode.remove();
+      messageInput.value = currentText;
       alert("Send request failed.");
       return;
     }
@@ -185,32 +219,48 @@ async function sendMessage() {
     const sendData = await sendRes.json();
     console.log("send data:", sendData);
 
-    messageInput.value = "";
     await loadMessages(false);
   } catch (err) {
     console.error("sendMessage error:", err);
+
+    pendingNode.remove();
+    messageInput.value = currentText;
     alert("Failed to send message.");
   } finally {
+    isSending = false;
     sendBtn.disabled = false;
+    sendBtn.textContent = "Send";
+    messageInput.disabled = false;
+    messageInput.focus();
     scheduleNextPoll(3000);
   }
 }
 
-sendBtn.addEventListener("click", sendMessage);
+sendBtn.addEventListener("click", () => {
+  if (isSending) return;
+  sendMessage();
+});
 
 messageInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
+
+    if (isSending) return;
+    if (e.repeat) return;
+
     sendMessage();
   }
 });
 
-newChatBtn.addEventListener("click", startChat);
+newChatBtn.addEventListener("click", () => {
+  if (isSending) return;
+  startChat();
+});
 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     stopPolling();
-  } else if (conversationId) {
+  } else if (conversationId && !isSending) {
     loadMessages(true)
       .catch((err) => console.error("visibility refresh error:", err))
       .finally(() => scheduleNextPoll());

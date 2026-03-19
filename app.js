@@ -1,6 +1,4 @@
 const API_BASE = "https://roseanne-psychogenic-affrontingly.ngrok-free.dev";
-
-// 只给确实需要的请求用；不要用于轮询 GET
 const NGROK_HEADERS = {
   "ngrok-skip-browser-warning": "true"
 };
@@ -32,7 +30,7 @@ function scheduleNextPoll(delay = POLL_INTERVAL_MS) {
 
   pollTimer = setTimeout(async () => {
     try {
-      await loadMessages({ silent: true });
+      await loadMessages(true);
     } catch (err) {
       console.error("poll loadMessages error:", err);
     } finally {
@@ -52,11 +50,7 @@ function buildMessagesSignature(messages) {
 
 function renderMessages(messages) {
   const signature = buildMessagesSignature(messages);
-
-  // 没变化就不重绘
-  if (signature === lastRenderedSignature) {
-    return;
-  }
+  if (signature === lastRenderedSignature) return;
 
   lastRenderedSignature = signature;
   messagesEl.innerHTML = "";
@@ -110,7 +104,7 @@ async function startChat() {
     conversationId = data.conversation_id;
     conversationLabel.textContent = `Conversation ID: ${conversationId}`;
 
-    await loadMessages({ silent: false });
+    await loadMessages(false);
     scheduleNextPoll();
   } catch (err) {
     console.error("startChat error:", err);
@@ -119,16 +113,17 @@ async function startChat() {
   }
 }
 
-async function loadMessages({ silent = false } = {}) {
-  if (!conversationId) return;
-  if (isLoadingMessages) return;
+async function loadMessages(silent = false) {
+  if (!conversationId || isLoadingMessages) return;
 
   isLoadingMessages = true;
 
   try {
     const res = await fetch(
-      `${API_BASE}/test-chat/messages?conversation_id=${encodeURIComponent(conversationId)}`
-      // 注意：这里不要带自定义 ngrok header，减少 OPTIONS 预检机会
+      `${API_BASE}/test-chat/messages?conversation_id=${encodeURIComponent(conversationId)}`,
+      {
+        headers: NGROK_HEADERS
+      }
     );
 
     if (!silent) {
@@ -163,7 +158,7 @@ async function sendMessage() {
   if (!text || !conversationId) return;
 
   sendBtn.disabled = true;
-  stopPolling(); // 发送期间暂停轮询，避免打架
+  stopPolling();
 
   try {
     const sendRes = await fetch(`${API_BASE}/test-chat/send`, {
@@ -191,20 +186,13 @@ async function sendMessage() {
     console.log("send data:", sendData);
 
     messageInput.value = "";
-
-    try {
-      // 发完立刻刷新一次
-      await loadMessages({ silent: false });
-    } catch (loadErr) {
-      console.error("loadMessages failed after send:", loadErr);
-      alert("Message sent, but failed to refresh messages.");
-    }
+    await loadMessages(false);
   } catch (err) {
     console.error("sendMessage error:", err);
     alert("Failed to send message.");
   } finally {
     sendBtn.disabled = false;
-    scheduleNextPoll(3000); // 发完后 3 秒再恢复轮询
+    scheduleNextPoll(3000);
   }
 }
 
@@ -223,7 +211,7 @@ document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
     stopPolling();
   } else if (conversationId) {
-    loadMessages({ silent: true })
+    loadMessages(true)
       .catch((err) => console.error("visibility refresh error:", err))
       .finally(() => scheduleNextPoll());
   }

@@ -1,9 +1,16 @@
 const API_BASE = "https://roseanne-psychogenic-affrontingly.ngrok-free.dev";
-const DEFAULT_HEADERS = {
+
+// 只给确实需要的请求用；不要用于轮询 GET
+const NGROK_HEADERS = {
   "ngrok-skip-browser-warning": "true"
 };
+
 let conversationId = null;
 let pollTimer = null;
+let isLoadingMessages = false;
+let lastRenderedSignature = "";
+
+const POLL_INTERVAL_MS = 5000;
 
 const conversationLabel = document.getElementById("conversationLabel");
 const messagesEl = document.getElementById("messages");
@@ -11,68 +18,50 @@ const messageInput = document.getElementById("messageInput");
 const sendBtn = document.getElementById("sendBtn");
 const newChatBtn = document.getElementById("newChatBtn");
 
-async function startChat() {
-  try {
-    const res = await fetch(`${API_BASE}/test-chat/start`, {
-      method: "POST",
-      headers: DEFAULT_HEADERS
-    });
-
-    console.log("startChat status:", res.status);
-
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error("startChat failed:", errText);
-      alert("Failed to start chat.");
-      return;
-    }
-
-    const data = await res.json();
-    console.log("startChat data:", data);
-
-    conversationId = data.conversation_id;
-    conversationLabel.textContent = `Conversation ID: ${conversationId}`;
-    messagesEl.innerHTML = "";
-
-    if (pollTimer) clearInterval(pollTimer);
-    pollTimer = setInterval(loadMessages, 2000);
-
-    await loadMessages();
-  } catch (err) {
-    console.error("startChat error:", err);
-    alert("Failed to start chat.");
+function stopPolling() {
+  if (pollTimer) {
+    clearTimeout(pollTimer);
+    pollTimer = null;
   }
 }
 
-async function loadMessages() {
-  if (!conversationId) return;
+function scheduleNextPoll(delay = POLL_INTERVAL_MS) {
+  stopPolling();
 
-  const res = await fetch(
-    `${API_BASE}/test-chat/messages?conversation_id=${conversationId}`,
-    {
-      headers: DEFAULT_HEADERS
+  if (!conversationId || document.hidden) return;
+
+  pollTimer = setTimeout(async () => {
+    try {
+      await loadMessages({ silent: true });
+    } catch (err) {
+      console.error("poll loadMessages error:", err);
+    } finally {
+      scheduleNextPoll(POLL_INTERVAL_MS);
     }
+  }, delay);
+}
+
+function buildMessagesSignature(messages) {
+  return JSON.stringify(
+    messages.map((msg) => ({
+      role: msg.role || "",
+      content: msg.content || ""
+    }))
   );
+}
 
-  console.log("loadMessages status:", res.status);
+function renderMessages(messages) {
+  const signature = buildMessagesSignature(messages);
 
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error("loadMessages failed:", errText);
-    throw new Error("Failed to load messages");
+  // 没变化就不重绘
+  if (signature === lastRenderedSignature) {
+    return;
   }
 
-  const data = await res.json();
-  console.log("loadMessages data:", data);
-
-  if (!data.messages || !Array.isArray(data.messages)) {
-    console.error("Invalid messages payload:", data);
-    throw new Error("Invalid messages payload");
-  }
-
+  lastRenderedSignature = signature;
   messagesEl.innerHTML = "";
 
-  for (const msg of data.messages) {
+  for (const msg of messages) {
     const item = document.createElement("div");
     item.className = `message ${msg.role || "unknown"}`;
 
@@ -92,18 +81,96 @@ async function loadMessages() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+async function startChat() {
+  stopPolling();
+  conversationId = null;
+  lastRenderedSignature = "";
+  messagesEl.innerHTML = "";
+  conversationLabel.textContent = "Starting...";
+
+  try {
+    const res = await fetch(`${API_BASE}/test-chat/start`, {
+      method: "POST",
+      headers: NGROK_HEADERS
+    });
+
+    console.log("startChat status:", res.status);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("startChat failed:", errText);
+      alert("Failed to start chat.");
+      conversationLabel.textContent = "Failed to start";
+      return;
+    }
+
+    const data = await res.json();
+    console.log("startChat data:", data);
+
+    conversationId = data.conversation_id;
+    conversationLabel.textContent = `Conversation ID: ${conversationId}`;
+
+    await loadMessages({ silent: false });
+    scheduleNextPoll();
+  } catch (err) {
+    console.error("startChat error:", err);
+    conversationLabel.textContent = "Failed to start";
+    alert("Failed to start chat.");
+  }
+}
+
+async function loadMessages({ silent = false } = {}) {
+  if (!conversationId) return;
+  if (isLoadingMessages) return;
+
+  isLoadingMessages = true;
+
+  try {
+    const res = await fetch(
+      `${API_BASE}/test-chat/messages?conversation_id=${encodeURIComponent(conversationId)}`
+      // 注意：这里不要带自定义 ngrok header，减少 OPTIONS 预检机会
+    );
+
+    if (!silent) {
+      console.log("loadMessages status:", res.status);
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("loadMessages failed:", errText);
+      throw new Error("Failed to load messages");
+    }
+
+    const data = await res.json();
+
+    if (!silent) {
+      console.log("loadMessages data:", data);
+    }
+
+    if (!data.messages || !Array.isArray(data.messages)) {
+      console.error("Invalid messages payload:", data);
+      throw new Error("Invalid messages payload");
+    }
+
+    renderMessages(data.messages);
+  } finally {
+    isLoadingMessages = false;
+  }
+}
+
 async function sendMessage() {
   const text = messageInput.value.trim();
   if (!text || !conversationId) return;
 
   sendBtn.disabled = true;
+  stopPolling(); // 发送期间暂停轮询，避免打架
 
   try {
     const sendRes = await fetch(`${API_BASE}/test-chat/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...DEFAULT_HEADERS
+        ...NGROK_HEADERS
       },
       body: JSON.stringify({
         conversation_id: conversationId,
@@ -126,7 +193,8 @@ async function sendMessage() {
     messageInput.value = "";
 
     try {
-      await loadMessages();
+      // 发完立刻刷新一次
+      await loadMessages({ silent: false });
     } catch (loadErr) {
       console.error("loadMessages failed after send:", loadErr);
       alert("Message sent, but failed to refresh messages.");
@@ -136,6 +204,7 @@ async function sendMessage() {
     alert("Failed to send message.");
   } finally {
     sendBtn.disabled = false;
+    scheduleNextPoll(3000); // 发完后 3 秒再恢复轮询
   }
 }
 
@@ -149,5 +218,17 @@ messageInput.addEventListener("keydown", (e) => {
 });
 
 newChatBtn.addEventListener("click", startChat);
+
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    stopPolling();
+  } else if (conversationId) {
+    loadMessages({ silent: true })
+      .catch((err) => console.error("visibility refresh error:", err))
+      .finally(() => scheduleNextPoll());
+  }
+});
+
+window.addEventListener("beforeunload", stopPolling);
 
 startChat();

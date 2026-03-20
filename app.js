@@ -1,4 +1,4 @@
-const API_BASE = "https://roseanne-psychogenic-affrontingly.ngrok-free.dev";
+const API_BASE = " ";
 const NGROK_HEADERS = {
   "ngrok-skip-browser-warning": "true"
 };

@@ -104,7 +104,7 @@ async function startChat() {
   conversationLabel.textContent = "Starting...";
 
   try {
-    const res = await fetch(`${API_BASE}/test-chat/start`, {
+    const res = await fetch(`${API_BASE}/internal_test/start`, {
       method: "POST",
       headers: NGROK_HEADERS
     });
@@ -141,7 +141,7 @@ async function loadMessages(silent = false) {
 
   try {
     const res = await fetch(
-      `${API_BASE}/test-chat/messages?conversation_id=${encodeURIComponent(conversationId)}`,
+      `${API_BASE}/internal_test/messages?conversation_id=${encodeURIComponent(conversationId)}`,
       {
         headers: NGROK_HEADERS
       }
@@ -192,7 +192,7 @@ async function sendMessage() {
   const pendingNode = appendMessage("Customer", currentText, "user", true);
 
   try {
-    const sendRes = await fetch(`${API_BASE}/test-chat/send`, {
+    const sendRes = await fetch(`${API_BASE}/internal_test/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
